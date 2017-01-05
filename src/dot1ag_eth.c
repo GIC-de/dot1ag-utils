@@ -2,17 +2,17 @@
  * Copyright (c) 2011
  * Author: Ronald van der Pol
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 
+ *
  *    1. Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
  *    2. Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -379,7 +379,7 @@ processLTM(char *ifname, uint8_t *ltm_frame) {
 	/*
 	 * Below the outgoing LTR Ethernet frame is built
 	 */
-	
+
 	/* clear outgoing packet buffer 'outbuf' */
 	memset(outbuf, 0, sizeof(outbuf));
 
@@ -469,11 +469,10 @@ processLTM(char *ifname, uint8_t *ltm_frame) {
 static uint32_t CCIsentCCMs = 0;
 
 void cfm_ccm_sender(char *ifname, uint16_t vlan, uint8_t md_level, char *md,
-				char *ma, uint16_t mepid, int interval) {
+				char *ma, uint16_t mepid, int interval, uint8_t flags) {
 	uint8_t outbuf[ETHER_MAX_LEN];
 	uint8_t local_mac[ETHER_ADDR_LEN];
 	uint8_t remote_mac[ETHER_ADDR_LEN];
-	uint8_t flags;
 	int pktsize = 0;
 	int size = 0;
 	int CCMinterval = 4;    /* default to 1 sec */
@@ -500,9 +499,6 @@ void cfm_ccm_sender(char *ifname, uint16_t vlan, uint8_t md_level, char *md,
 	remote_mac[5] = 0x30 + (md_level & 0x0F);
 	cfm_addencap(vlan, local_mac, remote_mac, outbuf, &size);
 	pktsize += size;
-        
-	/* RDI in flag field is always set to 0 */
-	flags = 0;
 	/* least-significant three bits are the CCM Interval */
 	switch (interval) {
 	case 10:
@@ -546,25 +542,32 @@ void cfm_ccm_sender(char *ifname, uint16_t vlan, uint8_t md_level, char *md,
 	cfm_cc->seqNumber = htonl(CCIsentCCMs);
 	CCIsentCCMs++;
 	cfm_cc->mepid = htons(mepid);
-	/* XXX always assume character string format */
-	/* use character string (4) as Maintenance Domain Name Format */
-	cfm_cc->maid.format = 4;
-	cfm_cc->maid.length = strlen(md);
-	if (cfm_cc->maid.length > DOT1AG_MAX_MD_LENGTH) {
-		cfm_cc->maid.length = DOT1AG_MAX_MD_LENGTH;
-	}
-	/* set p to start of variable part in MAID */
-	p = cfm_cc->maid.var_p;
-	/* fill variable part of MAID with 0 */
-	memset(p, 0, sizeof(cfm_cc->maid.var_p));
-	/* copy Maintenance Domain Name to MAID */
-	mdnl = strlen(md);
-	if (mdnl > DOT1AG_MAX_MD_LENGTH) {
-		mdnl = DOT1AG_MAX_MD_LENGTH;
-	}
-	memcpy(p, md, mdnl);
-	p += mdnl;
-	/* XXX always assume character string format */
+    if (strcmp(md, "None") == 0) {
+        /* no Maintenance Domain present (1) */
+        cfm_cc->maid.format = 1;
+        p = cfm_cc->maid.var_p - 1;
+        /* fill variable part of MAID with 0 */
+        memset(p, 0, sizeof(cfm_cc->maid.var_p)+1);
+        mdnl = 0;
+    } else {
+        /* use character string (4) as Maintenance Domain Name Format */
+        cfm_cc->maid.format = 4;
+    	cfm_cc->maid.length = strlen(md);
+    	if (cfm_cc->maid.length > DOT1AG_MAX_MD_LENGTH) {
+    		cfm_cc->maid.length = DOT1AG_MAX_MD_LENGTH;
+    	}
+        /* set p to start of variable part in MAID */
+        p = cfm_cc->maid.var_p;
+        /* fill variable part of MAID with 0 */
+        memset(p, 0, sizeof(cfm_cc->maid.var_p));
+        /* copy Maintenance Domain Name to MAID */
+        mdnl = strlen(md);
+        if (mdnl > DOT1AG_MAX_MD_LENGTH) {
+            mdnl = DOT1AG_MAX_MD_LENGTH;
+        }
+        memcpy(p, md, mdnl);
+        p += mdnl;
+    }
 	/* set Short MA Name Format to character string (2) */
 	*p = 2;
 	p++;
@@ -580,7 +583,7 @@ void cfm_ccm_sender(char *ifname, uint16_t vlan, uint8_t md_level, char *md,
 	memcpy(p, ma, smanl);
 	/* field defined by ITU-T Y.1731, transmit as 0 */
 	memset(cfm_cc->y1731, 0, sizeof(cfm_cc->y1731));
-	
+
 	pktsize += sizeof(struct cfm_cc);
 
 	/* add Sender ID TLV */

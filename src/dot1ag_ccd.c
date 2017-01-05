@@ -2,17 +2,17 @@
  * Copyright (c) 2011
  * Author: Ronald van der Pol
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 
+ *
  *    1. Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
  *    2. Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -105,6 +105,7 @@ log_mep_info(int sig) {
 struct rMEP rMEPdb[MAX_MEPID + 1];
 int CCMinterval = -1;
 int mepid = -1;
+uint8_t flags = 0;
 uint8_t mdLevel = 0;
 char *md = NULL;
 char *ma = NULL;
@@ -134,7 +135,7 @@ main(int argc, char **argv) {
 	gettimeofday(&next_ccm, NULL);
 
 	/* parse command line options */
-	while ((ch = getopt(argc, argv, "hi:l:m:v:t:d:a:f:V")) != -1) {
+	while ((ch = getopt(argc, argv, "hi:l:m:v:t:d:a:f:F:V")) != -1) {
 		switch(ch) {
 		case 'h':
 			usage();
@@ -164,6 +165,9 @@ main(int argc, char **argv) {
 			syslog_fac = optarg;
 			facility = -1;  /* will be set below if optarg OK */
 			break;
+        case 'F':
+            flags = atoi(optarg);
+            break;
 		case 'V':
 			verbose = 1;
 			break;
@@ -324,7 +328,7 @@ main(int argc, char **argv) {
 		gettimeofday(&now, NULL);
 		if (cfm_timevalcmp(next_ccm, now, <)) {
 			cfm_ccm_sender(ifname, vlan, mdLevel, md,
-						ma, mepid, CCMinterval);
+						ma, mepid, CCMinterval, flags);
 			if (CCMinterval >= 1000)  {
 				next_ccm.tv_sec =
 					now.tv_sec + CCMinterval / 1000;
@@ -753,7 +757,7 @@ tlv_ps(int ps) {
 		result = "unknown";
 	}
 	return result;
-		
+
 }
 
 /* map TLV Interface Status value to readable string */
